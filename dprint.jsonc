@@ -1,0 +1,8 @@
+{
+	"typescript": {},
+	"json": {},
+	"markdown": {},
+	"toml": { "useTabs": true },
+	"excludes": ["**/target", "**/node_modules", "**/dist"],
+	"plugins": []
+}
