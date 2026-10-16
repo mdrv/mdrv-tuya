@@ -772,51 +772,59 @@ pub async fn lamp_task(
             };
         let _ = events.send(SessionEvent::Connected).await;
         emit_state(&events, &dp).await;
+        // Fresh state on every wake, so the UI shows reality even when the
+        // waking command's echoes don't cover every datapoint.
+        queue.push_front(LampCmd::Status);
 
         // Phase 3 — ready: serve commands until idle.
         let idle = tokio::time::sleep(idle_timeout);
         tokio::pin!(idle);
         'session: loop {
-            tokio::select! {
-                cmd = rx.recv() => {
-                    let Some(cmd) = cmd else { break 'reconnect };
-                    idle.as_mut().reset(tokio::time::Instant::now() + idle_timeout);
-                    queue.push_back(cmd);
-                    while let Some(q) = queue.pop_front() {
-                        match q {
-                            LampCmd::Write(writes) => {
-                                for w in writes {
-                                    write_dp(&mut sess, &w, &mut frame_rx, &mut dp, &events).await;
-                                }
-                            }
-                            LampCmd::Status => {
-                                if let Ok((seq, Some(waiter))) = sess.send(3, b"", 0, true).await {
-                                    let _ = wait_ack(
-                                        &mut sess, waiter, seq, &mut frame_rx, &mut dp, &events,
-                                        ACK_TIMEOUT,
-                                    )
-                                    .await;
-                                }
-                            }
+            if queue.is_empty() {
+                tokio::select! {
+                    cmd = rx.recv() => {
+                        let Some(cmd) = cmd else { break 'reconnect };
+                        idle.as_mut().reset(tokio::time::Instant::now() + idle_timeout);
+                        queue.push_back(cmd);
+                    }
+                    _ = &mut idle => {
+                        tracing::info!(lamp = %creds.name, "idle timeout, disconnecting");
+                        break 'session;
+                    }
+                }
+            }
+            while let Some(q) = queue.pop_front() {
+                match q {
+                    LampCmd::Write(writes) => {
+                        for w in writes {
+                            write_dp(&mut sess, &w, &mut frame_rx, &mut dp, &events).await;
                         }
                     }
-                    // Settle: keep draining notifications until the bulb goes
-                    // quiet, so its (late) DP echoes reach the UI promptly.
-                    while let Ok(pkt) =
-                        tokio::time::timeout(SETTLE_WINDOW, frame_rx.recv()).await
-                    {
-                        let Some(pkt) = pkt else { break };
-                        if process_packet(&mut sess, pkt, &mut dp, &events)
-                            .await
-                            .is_err()
-                        {
-                            break;
+                    LampCmd::Status => {
+                        if let Ok((seq, Some(waiter))) = sess.send(3, b"", 0, true).await {
+                            let _ = wait_ack(
+                                &mut sess,
+                                waiter,
+                                seq,
+                                &mut frame_rx,
+                                &mut dp,
+                                &events,
+                                ACK_TIMEOUT,
+                            )
+                            .await;
                         }
                     }
                 }
-                _ = &mut idle => {
-                    tracing::info!(lamp = %creds.name, "idle timeout, disconnecting");
-                    break 'session;
+            }
+            // Settle: keep draining notifications until the bulb goes
+            // quiet, so its (late) DP echoes reach the UI promptly.
+            while let Ok(pkt) = tokio::time::timeout(SETTLE_WINDOW, frame_rx.recv()).await {
+                let Some(pkt) = pkt else { break };
+                if process_packet(&mut sess, pkt, &mut dp, &events)
+                    .await
+                    .is_err()
+                {
+                    break;
                 }
             }
         }
