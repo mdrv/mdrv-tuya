@@ -1,0 +1,70 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check version sync (tag == crate)
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          grep -q "^version = \"$V\"" Cargo.toml
+      - uses: oven-sh/setup-bun@v2
+      - name: Build frontend (embedded via include_str!)
+        run: |
+          cd frontend
+          bun install --frozen-lockfile
+          bun run build
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Build daemon
+        run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Smoke the binary
+        run: target/${{ matrix.target }}/release/mdrv-tuya --version
+      - name: Package
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          T=${{ matrix.target }}
+          B=target/$T/release/mdrv-tuya
+          D=mdrv-tuya-v$V-$T
+          mkdir -p pkg/$D
+          cp $B README.md pkg/$D/
+          tar -czf $D.tar.gz -C pkg $D
+          sha256sum $D.tar.gz
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist-${{ matrix.target }}
+          path: mdrv-tuya-*.tar.gz
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with: { merge-multiple: true, path: dist }
+      - name: Checksums
+        run: |
+          cd dist
+          ls | grep -v '^SHA256SUMS.txt$' | xargs sha256sum > SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: dist/*
+          generate_release_notes: true

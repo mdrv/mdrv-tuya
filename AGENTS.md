@@ -49,3 +49,5 @@ Requires: `bluetoothd` running, BlueZ, a LE-capable adapter, `bun`.
 ## Commits
 
 Conventional commits, `type: lowercase description`, imperative, ≤72 chars.
+Author/committer identity: **Umar Alfarouk `<medrivia@gmail.com>`** (set via
+repo-local git config; never commit as anything else).
