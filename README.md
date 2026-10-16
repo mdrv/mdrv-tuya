@@ -22,13 +22,13 @@ and open `http://<pc-ip>:4141`.
 
 ## Development
 
-| Command            | What it does                                    |
-| ------------------ | ----------------------------------------------- |
-| `just build`       | frontend (bun) + release build of the daemon    |
-| `just run`         | build + run (extra args pass through, e.g. `--debug`) |
-| `just dev-frontend`| vite dev server on :5276, proxies /ws to :4141  |
-| `just check`       | cargo check + frontend type check               |
-| `just test`        | unit tests (protocol helpers)                   |
+| Command             | What it does                                          |
+| ------------------- | ----------------------------------------------------- |
+| `just build`        | frontend (bun) + release build of the daemon          |
+| `just run`          | build + run (extra args pass through, e.g. `--debug`) |
+| `just dev-frontend` | vite dev server on :5276, proxies /ws to :4141        |
+| `just check`        | cargo check + frontend type check                     |
+| `just test`         | unit tests (protocol helpers)                         |
 
 ## Features
 

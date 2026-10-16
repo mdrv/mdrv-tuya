@@ -2,8 +2,8 @@
 name = "mdrv-tuya"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.82.0"
 license = "MIT"
+rust-version = "1.82.0"
 
 [dependencies]
 aes = "0.8.4"
