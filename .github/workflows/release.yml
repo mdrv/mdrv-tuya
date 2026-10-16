@@ -25,6 +25,8 @@ jobs:
         run: |
           V="${GITHUB_REF_NAME#v}"
           grep -q "^version = \"$V\"" Cargo.toml
+      - name: Install dbus dev (bluer links libdbus)
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
       - uses: oven-sh/setup-bun@v2
       - name: Build frontend (embedded via include_str!)
         run: |
