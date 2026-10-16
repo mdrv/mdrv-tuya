@@ -2,7 +2,7 @@
 	import { presets, sendPreset } from '../lib/ws.svelte.ts'
 	import { chip, chipRow } from '../styles.css.ts'
 
-	let { lamp }: { lamp: string } = $props()
+	let { name }: { name: string } = $props()
 
 	const names = $derived(Object.keys(presets()))
 
@@ -15,9 +15,9 @@
 
 {#if names.length > 0}
 	<div class={chipRow}>
-		{#each names as name (name)}
-			<button type="button" class={chip()} onclick={() => sendPreset(lamp, name)}>
-				{label(name)}
+		{#each names as presetName (presetName)}
+			<button type="button" class={chip()} onclick={() => sendPreset(name, presetName)}>
+				{label(presetName)}
 			</button>
 		{/each}
 	</div>

@@ -5,27 +5,35 @@
 import { createGlobalTheme, createGlobalThemeContract, globalStyle, keyframes, style } from '@vanilla-extract/css'
 import { recipe } from '@vanilla-extract/recipes'
 
-export const vars = createGlobalThemeContract({
-	color: {
-		bg: null,
-		surface: null,
-		surfaceAlt: null,
-		border: null,
-		text: null,
-		textMuted: null,
-		accent: null,
-		accentSoft: null,
-		live: null,
-		warn: null,
-		dead: null,
-		error: null,
-		errorSoft: null,
+// Null leaves + a path transformer → auto-generated kebab names
+// (--color-bg, --color-accent, …) shared by both palettes.
+export const vars = createGlobalThemeContract(
+	{
+		color: {
+			bg: null,
+			surface: null,
+			surfaceAlt: null,
+			border: null,
+			text: null,
+			textMuted: null,
+			accent: null,
+			accentSoft: null,
+			live: null,
+			warn: null,
+			dead: null,
+			error: null,
+			errorSoft: null,
+		},
+		font: {
+			body: null,
+			mono: null,
+		},
 	},
-	font: {
-		body: null,
-		mono: null,
-	},
-})
+	(_value, path) =>
+		path
+			.map((segment) => segment.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase())
+			.join('-'),
+)
 
 const fonts = {
 	body: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
@@ -101,17 +109,6 @@ globalStyle('button', {
 	fontFamily: 'inherit',
 	fontSize: 'inherit',
 })
-
-/**
- * Inline styles in .svelte can't go through the vanilla-extract compiler, so
- * dynamic rules (slider track gradients) need raw `var()` references. Contract
- * values may present as '--name', 'name' or 'var(--name)' depending on the
- * compiler output — normalize all three.
- */
-export const cssVar = (name: string): string => {
-	if (name.startsWith('var(')) return name
-	return `var(--${name.startsWith('--') ? name.slice(2) : name})`
-}
 
 const pulse = keyframes({
 	'0%, 100%': { opacity: 1 },

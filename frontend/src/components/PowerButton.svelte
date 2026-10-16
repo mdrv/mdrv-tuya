@@ -2,7 +2,7 @@
 	import { setPower } from '../lib/ws.svelte.ts'
 	import { powerButton, powerIcon } from '../styles.css.ts'
 
-	let { lamp, on }: { lamp: string; on: boolean } = $props()
+	let { name, on }: { name: string; on: boolean } = $props()
 </script>
 
 <button
@@ -10,7 +10,7 @@
 	class={powerButton({ on })}
 	aria-pressed={on}
 	aria-label={on ? 'Turn off' : 'Turn on'}
-	onclick={() => setPower(lamp, !on)}
+	onclick={() => setPower(name, !on)}
 >
 	<svg
 		class={powerIcon}

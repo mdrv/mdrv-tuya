@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { LampCard } from './components/LampCard.svelte'
+	import LampCard from './components/LampCard.svelte'
 	import { applyTheme, theme, toggleTheme } from './lib/theme.svelte.ts'
 	import { lampNames, lastError, startWs, stopWs, wsStatus } from './lib/ws.svelte.ts'
 	import { bar, barTitle, column, emptyNote, errorStrip, page, themeToggle, wsDot, wsTag } from './styles.css.ts'

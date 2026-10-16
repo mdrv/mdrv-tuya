@@ -2,9 +2,9 @@
 	import { lampLink } from '../lib/ws.svelte.ts'
 	import { pill, pillDot } from '../styles.css.ts'
 
-	let { lamp }: { lamp: string } = $props()
+	let { name }: { name: string } = $props()
 
-	const status = $derived(lampLink(lamp))
+	const status = $derived(lampLink(name))
 	const label = $derived(status === 'live' ? 'Live' : status === 'waking' ? 'Connecting…' : 'Offline')
 </script>
 

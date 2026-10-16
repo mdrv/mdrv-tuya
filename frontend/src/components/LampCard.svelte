@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { HueRing } from './HueRing.svelte'
-	import { PowerButton } from './PowerButton.svelte'
-	import { PresetChips } from './PresetChips.svelte'
-	import { Slider } from './Slider.svelte'
-	import { StatusPill } from './StatusPill.svelte'
-	import { commitWhite, dragColour, dragWhite, lampView } from '../lib/ws.svelte.ts'
+	import HueRing from './HueRing.svelte'
+	import PowerButton from './PowerButton.svelte'
+	import PresetChips from './PresetChips.svelte'
+	import Slider from './Slider.svelte'
+	import StatusPill from './StatusPill.svelte'
+	import { commitColour, commitWhite, dragColour, dragWhite, lampView } from '../lib/ws.svelte.ts'
 	import {
 		card,
 		cardBody,

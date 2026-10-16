@@ -3,14 +3,15 @@
 	import { hueCenter, hueReadout, hueRing, hueSub, hueThumb } from '../styles.css.ts'
 
 	interface Props {
-		lamp: string
+		/** Lamp name — targets the store mutators. */
+		name: string
 		/** Merged (server+optimistic) HSV, already defaulted by the parent. */
 		hue: number
 		sat: number
 		val: number
 	}
 
-	let { lamp, hue, sat, val }: Props = $props()
+	let { name, hue, sat, val }: Props = $props()
 
 	let el: HTMLDivElement | undefined = $state()
 	let dragging = $state(false)
@@ -43,11 +44,11 @@
 	function apply(e: PointerEvent): void {
 		const h = hueFromPointer(e)
 		dragHue = h
-		dragColour(lamp, h, sat, val)
+		dragColour(name, h, sat, val)
 	}
 
 	function commit(h: number): void {
-		commitColour(lamp, h, sat, val)
+		commitColour(name, h, sat, val)
 		// Let the snapshot echo own the value again.
 		dragHue = null
 	}

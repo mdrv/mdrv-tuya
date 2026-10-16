@@ -62,9 +62,10 @@ export function lampView(name: string): LampView | undefined {
 	const ov = overlay[name]
 	if (ov === undefined) return { ...base }
 	const merged: LampView = { ...base }
+	const writable = merged as Record<LampField, LampView[LampField]>
 	for (const field of LAMP_FIELDS) {
 		const entry = ov[field]
-		if (entry !== undefined) merged[field] = entry.value as LampView[LampField]
+		if (entry !== undefined) writable[field] = entry.value
 	}
 	return merged
 }
@@ -134,7 +135,7 @@ export function dragWhite(lamp: string, field: 'brightness' | 'temp', value: num
 		if (entry === undefined) return
 		entry.sent = true
 		entry.at = Date.now()
-		send({ type: 'set', lamp, dp, value: entry.value })
+		send({ type: 'set', lamp, dp, value: entry.value as number })
 	})
 }
 
@@ -177,11 +178,14 @@ function sendCurrentColour(lamp: string): void {
 		entry.sent = true
 		entry.at = Date.now()
 	}
+	// Overlay shares one entry type with the boolean power DP; colour slots
+	// only ever hold numbers.
+	const num = (v: number | boolean): number => v as number
 	send({
 		type: 'set',
 		lamp,
 		dp: 'colour',
-		value: { h: Math.round(h.value), s: Math.round(s.value), v: Math.round(v.value) },
+		value: { h: Math.round(num(h.value)), s: Math.round(num(s.value)), v: Math.round(num(v.value)) },
 	})
 }
 

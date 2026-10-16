@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { cssVar, slider, sliderHead, sliderName, sliderValue, sliderWrap, vars } from '../styles.css.ts'
+	import { cssVar } from '../lib/cssvar.ts'
+	import { slider, sliderHead, sliderValue, sliderWrap, vars } from '../styles.css.ts'
 
 	interface Props {
 		label: string
@@ -38,7 +39,7 @@
 
 <label class={sliderWrap}>
 	<span class={sliderHead}>
-		<span class={sliderName}>{label}</span>
+		<span>{label}</span>
 		<span class={sliderValue}>{value}</span>
 	</span>
 	<input
