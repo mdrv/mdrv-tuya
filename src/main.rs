@@ -6,7 +6,7 @@ mod tuya;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
@@ -61,13 +61,13 @@ fn init_logging(debug: bool, trace: bool) {
 }
 
 /// Expand a leading `~` using $HOME (avoiding a shellexpand dependency).
-fn expand_home(p: &PathBuf) -> PathBuf {
+fn expand_home(p: &Path) -> PathBuf {
     if let Ok(home) = std::env::var("HOME") {
         if let Ok(rel) = p.strip_prefix("~") {
             return PathBuf::from(home).join(rel);
         }
     }
-    p.clone()
+    p.to_path_buf()
 }
 
 #[tokio::main]
