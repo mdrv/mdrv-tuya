@@ -83,7 +83,7 @@ Offline checks:
 
 ```
 just check        # types: cargo check + svelte-check
-just test         # 31 Rust tests + 16 frontend tests
+just test         # 24 Rust tests + 16 frontend tests
 ```
 
 The Rust tests cover the protocol framing (CRC, varints, AES frame
