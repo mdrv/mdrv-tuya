@@ -34,8 +34,10 @@ and open `http://<pc-ip>:4141`.
 
 - **Live control** — power, brightness, white temperature, colour (hue/sat/val)
   with ~1 s round-trip over one held BLE connection per lamp.
+- **Lamp selector** — focus a single lamp or use the all-lamps view with
+  global presets and all-on/all-off; the choice persists across reloads.
 - **Presets** — named looks in `lamps.toml` (`[preset.sleep]`, …), one tap to
-  apply, editable without rebuilding.
+  apply (per lamp or to every lamp at once), editable without rebuilding.
 - **App coexistence** — the daemon only holds a lamp's connection while in use
   and disconnects after `--idle-timeout` (default 300 s), freeing the bulb for
   the Tuya app.

@@ -271,8 +271,10 @@ async fn send_cmd(state: &Shared, lamp: &str, cmd: LampCmd) -> Result<()> {
 }
 
 fn clamp_u32(v: &Value, lo: u32, hi: u32) -> Result<u32> {
-    let n = v.as_u64().context("expected a number")?;
-    Ok(n.clamp(u64::from(lo), u64::from(hi)) as u32)
+    // i64 so out-of-range negatives clamp to lo instead of erroring as
+    // "not a number" (as_u64 rejects them outright).
+    let n = v.as_i64().context("expected a number")?;
+    Ok(n.clamp(i64::from(lo), i64::from(hi)) as u32)
 }
 
 fn build_set_writes(dp: &str, value: &Value) -> Result<Vec<DpWrite>> {
@@ -325,4 +327,153 @@ fn preset_writes(p: &Preset) -> Vec<DpWrite> {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn ids(writes: &[DpWrite]) -> Vec<u8> {
+        writes.iter().map(|w| w.id).collect()
+    }
+
+    #[test]
+    fn set_on_builds_bool_dp1() {
+        let w = build_set_writes("on", &json!(true)).unwrap();
+        assert_eq!(w.len(), 1);
+        assert_eq!(w[0].id, 1);
+        assert_eq!(w[0].dtype, 1);
+        assert_eq!(w[0].value, vec![1]);
+    }
+
+    #[test]
+    fn set_on_rejects_non_bool() {
+        assert!(build_set_writes("on", &json!("yes")).is_err());
+        assert!(build_set_writes("on", &json!(1)).is_err());
+    }
+
+    #[test]
+    fn set_bright_clamps_to_dp_range() {
+        assert_eq!(
+            build_set_writes("bright", &json!(5)).unwrap()[0].value,
+            10u32.to_be_bytes()
+        );
+        assert_eq!(
+            build_set_writes("bright", &json!(5000)).unwrap()[0].value,
+            1000u32.to_be_bytes()
+        );
+        assert_eq!(
+            build_set_writes("bright", &json!(500)).unwrap()[0].value,
+            500u32.to_be_bytes()
+        );
+    }
+
+    #[test]
+    fn set_temp_targets_dp4() {
+        let w = build_set_writes("temp", &json!(800)).unwrap();
+        assert_eq!(w[0].id, 4);
+        assert_eq!(w[0].dtype, 2);
+    }
+
+    #[test]
+    fn set_colour_writes_data_then_mode() {
+        let w = build_set_writes("colour", &json!({"h": 180, "s": 1000, "v": 1000})).unwrap();
+        assert_eq!(w.len(), 2);
+        assert_eq!(w[0].id, 5);
+        assert_eq!(w[0].dtype, 3);
+        assert_eq!(w[0].value, b"00b403e803e8");
+        assert_eq!(w[1].id, 2);
+        assert_eq!(w[1].dtype, 4);
+        assert_eq!(w[1].value, vec![1]);
+    }
+
+    #[test]
+    fn set_colour_clamps_components() {
+        let w = build_set_writes("colour", &json!({"h": 400, "s": 1200, "v": -5})).unwrap();
+        assert_eq!(w[0].value, b"016803e80000");
+    }
+
+    #[test]
+    fn set_colour_rejects_missing_parts() {
+        assert!(build_set_writes("colour", &json!({"h": 1, "s": 1})).is_err());
+        assert!(build_set_writes("colour", &json!("cyan")).is_err());
+    }
+
+    #[test]
+    fn set_rejects_unknown_dp() {
+        assert!(build_set_writes("scene", &json!(1)).is_err());
+    }
+
+    #[test]
+    fn preset_white_orders_mode_temp_brightness() {
+        let p = Preset {
+            mode: "white".into(),
+            temp: Some(800),
+            brightness: Some(500),
+            hue: None,
+            sat: None,
+            val: None,
+        };
+        assert_eq!(ids(&preset_writes(&p)), vec![2, 4, 3]);
+    }
+
+    #[test]
+    fn preset_white_omits_missing_fields() {
+        let p = Preset {
+            mode: "white".into(),
+            temp: None,
+            brightness: None,
+            hue: None,
+            sat: None,
+            val: None,
+        };
+        assert_eq!(ids(&preset_writes(&p)), vec![2]);
+    }
+
+    #[test]
+    fn preset_colour_brightness_goes_first() {
+        // Scar: a DP3 write flips work_mode to white, so with a colour preset
+        // that sets brightness it MUST precede the mode + colour writes.
+        let p = Preset {
+            mode: "colour".into(),
+            temp: None,
+            brightness: Some(10),
+            hue: Some(39),
+            sat: Some(899),
+            val: Some(104),
+        };
+        let w = preset_writes(&p);
+        assert_eq!(ids(&w), vec![3, 2, 5]);
+        assert_eq!(w[0].value, 10u32.to_be_bytes());
+        assert_eq!(w[2].value, b"002703830068");
+    }
+
+    #[test]
+    fn preset_colour_without_brightness() {
+        let p = Preset {
+            mode: "colour".into(),
+            temp: None,
+            brightness: None,
+            hue: Some(180),
+            sat: Some(1000),
+            val: Some(1000),
+        };
+        assert_eq!(ids(&preset_writes(&p)), vec![2, 5]);
+    }
+
+    #[test]
+    fn preset_colour_hue_defaults_cover_missing_hsv() {
+        // hue/sat/val must be all-or-nothing: a partial preset writes no DP5
+        // rather than a garbage colour.
+        let p = Preset {
+            mode: "colour".into(),
+            temp: None,
+            brightness: None,
+            hue: Some(180),
+            sat: None,
+            val: None,
+        };
+        assert_eq!(ids(&preset_writes(&p)), vec![2]);
+    }
 }

@@ -47,3 +47,64 @@ pub fn load(path: &Path) -> Result<Config> {
         toml::from_str(&text).with_context(|| format!("parsing config {}", path.display()))?;
     Ok(cfg)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SAMPLE: &str = r#"
+[lamp.A]
+mac = "DC:23:4D:99:67:A4"
+device_id = "a3a730ntk1amjg7w"
+uuid = "8bdbbe48f5f4e020"
+local_key = "oZ$^J|QnRg}ZZYP3"
+
+[preset.sleep]
+mode = "colour"
+hue = 39
+sat = 899
+val = 104
+brightness = 10
+
+[preset.warm-full]
+mode = "white"
+temp = 1000
+brightness = 1000
+"#;
+
+    #[test]
+    fn parses_lamps_and_presets() {
+        let cfg: Config = toml::from_str(SAMPLE).unwrap();
+        let a = cfg.lamps.get("A").unwrap();
+        assert_eq!(a.mac, "DC:23:4D:99:67:A4");
+        assert_eq!(a.local_key, "oZ$^J|QnRg}ZZYP3");
+        let sleep = cfg.presets.get("sleep").unwrap();
+        assert_eq!(sleep.mode, "colour");
+        assert_eq!(sleep.brightness, Some(10));
+        assert_eq!(sleep.hue, Some(39));
+        assert!(sleep.temp.is_none());
+        assert_eq!(cfg.presets.get("warm-full").unwrap().temp, Some(1000));
+    }
+
+    #[test]
+    fn preset_serialization_skips_missing_fields() {
+        let p = Preset {
+            mode: "white".into(),
+            temp: Some(500),
+            brightness: None,
+            hue: None,
+            sat: None,
+            val: None,
+        };
+        let s = serde_json::to_string(&p).unwrap();
+        assert_eq!(s, r#"{"mode":"white","temp":500}"#);
+    }
+
+    #[test]
+    fn missing_preset_fields_default_to_none() {
+        let cfg: Config = toml::from_str(SAMPLE).unwrap();
+        let warm = cfg.presets.get("warm-full").unwrap();
+        assert_eq!(warm.hue, None);
+        assert_eq!(warm.val, None);
+    }
+}

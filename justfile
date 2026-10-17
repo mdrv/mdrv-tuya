@@ -23,3 +23,4 @@ run *args: build
 
 test:
 	cargo test
+	cd frontend && bun test

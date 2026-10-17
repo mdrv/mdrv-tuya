@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { hueAngle, hsvCss, pct } from '../lib/colour.ts'
 	import { commitColour, dragColour } from '../lib/ws.svelte.ts'
 	import { hueCenter, hueReadout, hueRing, hueSub, hueThumb } from '../styles.css.ts'
 
@@ -19,9 +20,7 @@
 	let dragHue = $state<number | null>(null)
 	const shownHue = $derived(dragHue ?? hue)
 
-	const colour = $derived(
-		`hsl(${shownHue} ${Math.round((sat / 1000) * 100)}% ${Math.round((val / 1000) * 46)}%)`,
-	)
+	const colour = $derived(hsvCss(shownHue, sat, val))
 	// Thumb rides the ring midline (center disc is 12% inset → midline at 44%).
 	const thumbPos = $derived.by(() => {
 		const rad = (shownHue * Math.PI) / 180
@@ -36,9 +35,7 @@
 		const rect = el!.getBoundingClientRect()
 		const dx = e.clientX - (rect.left + rect.width / 2)
 		const dy = e.clientY - (rect.top + rect.height / 2)
-		// 0° at 12 o'clock, clockwise — matches the conic-gradient origin.
-		const deg = (Math.atan2(dx, -dy) * 180) / Math.PI
-		return Math.round((deg + 360) % 360)
+		return hueAngle(dx, dy)
 	}
 
 	function apply(e: PointerEvent): void {
@@ -96,6 +93,6 @@
 	</div>
 	<div class={hueCenter} style:background={colour}>
 		<span class={hueReadout}>{shownHue}°</span>
-		<span class={hueSub}>{Math.round(sat / 10)}% · {Math.round(val / 10)}%</span>
+		<span class={hueSub}>{pct(sat)}% · {pct(val)}%</span>
 	</div>
 </div>

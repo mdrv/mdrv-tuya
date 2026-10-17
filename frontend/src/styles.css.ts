@@ -381,6 +381,46 @@ export const chip = recipe({
 			},
 		},
 	},
+	variants: {
+		/** Persistently highlighted (lamp selector's current choice). */
+		on: {
+			true: {
+				borderColor: vars.color.accent,
+				background: vars.color.accentSoft,
+			},
+		},
+	},
+	defaultVariants: { on: false },
+})
+
+// Lamp selector under the header: centered chips, breathing room below.
+export const selectorRow = style({
+	display: 'flex',
+	flexWrap: 'wrap',
+	justifyContent: 'center',
+	gap: '8px',
+	marginBottom: '16px',
+})
+
+// Small muted uppercase caption above a chip group.
+export const groupLabel = style({
+	fontSize: '0.7rem',
+	fontWeight: 650,
+	letterSpacing: '0.08em',
+	textTransform: 'uppercase',
+	color: vars.color.text,
+	opacity: 0.55,
+})
+
+// Card-like container for the all-lamp quick actions.
+export const allBar = style({
+	display: 'flex',
+	flexDirection: 'column',
+	gap: '10px',
+	padding: '12px 14px',
+	borderRadius: '16px',
+	border: `1px solid ${vars.color.border}`,
+	background: vars.color.surfaceAlt,
 })
 
 // Static hue wheel: conic-gradient starts at 12 o'clock and runs clockwise,
