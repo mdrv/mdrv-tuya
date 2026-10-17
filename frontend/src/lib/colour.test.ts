@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { hsvCss, hueAngle, pct, swatchCss, tempDp, tempKelvin, tempUi } from './colour.ts'
+import { hsvCss, hueAngle, pct, swatchCss, tempKelvin } from './colour.ts'
 
 describe('hsvCss', () => {
 	test('sleep preset values', () => {
@@ -45,18 +45,10 @@ describe('pct', () => {
 	})
 })
 
-describe('temp axis', () => {
-	test('ui and dp are exact inverses', () => {
-		expect(tempUi(0)).toBe(1000)
-		expect(tempUi(1000)).toBe(0)
-		expect(tempDp(tempUi(731))).toBe(731)
-	})
-})
-
 describe('tempKelvin', () => {
-	test('ui track ends map to the bead range (warm left, cool right)', () => {
-		expect(tempKelvin(0)).toBe(2700)
-		expect(tempKelvin(1000)).toBe(6500)
+	test('track ends map to the bead range (blue left, yellow right)', () => {
+		expect(tempKelvin(0)).toBe(6500)
+		expect(tempKelvin(1000)).toBe(2700)
 	})
 	test('midpoint', () => {
 		expect(tempKelvin(500)).toBe(4600)
@@ -65,14 +57,14 @@ describe('tempKelvin', () => {
 
 describe('swatchCss', () => {
 	test('white preset samples the temp gradient at its position', () => {
-		// warmest (dp 1000) sits at the left/warm end of the flipped gradient
+		// warmest (dp 1000) sits at the right/yellow end of the track
 		const css = swatchCss({ mode: 'white', temp: 1000, brightness: 1000 })
 		expect(css).toContain('linear-gradient')
-		expect(css).toContain('0% 0% / 300% 100%')
-	})
-	test('coolest white preset lands on the right', () => {
-		const css = swatchCss({ mode: 'white', temp: 0 })
 		expect(css).toContain('100% 0% / 300% 100%')
+	})
+	test('coolest white preset lands on the left', () => {
+		const css = swatchCss({ mode: 'white', temp: 0 })
+		expect(css).toContain('0% 0% / 300% 100%')
 	})
 	test('white preset without temp defaults to the middle', () => {
 		const css = swatchCss({ mode: 'white' })
