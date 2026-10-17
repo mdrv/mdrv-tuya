@@ -4,7 +4,7 @@
 	import PresetChips from './PresetChips.svelte'
 	import Slider from './Slider.svelte'
 	import StatusPill from './StatusPill.svelte'
-	import { TEMP_GRADIENT, tempKelvin } from '../lib/colour.ts'
+	import { TEMP_GRADIENT, tempDp, tempKelvin, tempUi } from '../lib/colour.ts'
 	import { commitColour, commitWhite, dragColour, dragWhite, lampView, setCountdown } from '../lib/ws.svelte.ts'
 	import {
 		card,
@@ -46,6 +46,10 @@
 		const min = Math.ceil(s / 60)
 		return min >= 60 ? `Timer · ${Math.floor(min / 60)} h ${min % 60} min left` : `Timer · ${min} min left`
 	})
+
+	// Temp slider in UI orientation (warm left, cool right); the bulb's
+	// datapoint runs the other way, so converts happen at this boundary.
+	const uiTemp = $derived(tempUi(lamp.temp ?? 500))
 </script>
 
 <section class={card} aria-label={`Lamp ${name}`}>
@@ -88,14 +92,14 @@
 					oncommit={(v) => commitWhite(name, 'brightness', v)}
 				/>
 				<Slider
-					label={`Temperature · ${tempKelvin(lamp.temp ?? 500)} K`}
+					label={`Temperature · ${tempKelvin(uiTemp)} K`}
 					min={0}
 					max={1000}
-					value={lamp.temp ?? 500}
+					value={uiTemp}
 					variant="gradient"
 					gradient={TEMP_GRADIENT}
-					oninput={(v) => dragWhite(name, 'temp', v)}
-					oncommit={(v) => commitWhite(name, 'temp', v)}
+					oninput={(v) => dragWhite(name, 'temp', tempDp(v))}
+					oncommit={(v) => commitWhite(name, 'temp', tempDp(v))}
 				/>
 			</div>
 		{:else}

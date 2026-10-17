@@ -19,7 +19,7 @@ Requires: `bluetoothd` running, BlueZ, a LE-capable adapter, `bun`.
 ## Structure
 
 - `src/main.rs` — clap CLI + logging init, entry point
-- `src/config.rs` — TOML config (lamps + presets), `~/.config/mdrv-tuya/lamps.toml`
+- `src/config.rs` — TOML config (lamps + presets), `~/.config/mdrv-tuya/mdrv-tuya.toml`
 - `src/tuya.rs` — Tuya BLE protocol v3 client (framing, AES, handshake, session task)
 - `src/app.rs` — axum router, WS fan-out, HTTP surface, embedded frontend
 - `frontend/` — Svelte 5 + Vite + vanilla-extract SPA, built to `frontend/dist/`,
@@ -32,7 +32,7 @@ Requires: `bluetoothd` running, BlueZ, a LE-capable adapter, `bun`.
 - **Protocol v3 only.** Bulbs advertise v3 (mfg byte 1); v4 is not implemented.
 - **Silent write drops are real** on weak RF: every write is retried with a
   fresh seq on ACK timeout (3 attempts).
-- Encryption keys come only from `lamps.toml` (extracted per
+- Encryption keys come only from `mdrv-tuya.toml` (extracted per
   `/x/m/v270/tuya/04-cloud-keys.md`; they rotate on bulb re-pairing).
 
 ## Scars (do not rediscover)

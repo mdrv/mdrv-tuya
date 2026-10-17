@@ -12,7 +12,8 @@ export interface LampView {
 	mode: 0 | 1 | 2 | null
 	/** 10–1000 */
 	brightness: number | null
-	/** 0–1000, 1000 = warmest */
+	/** 0–1000 device value, 0 = coolest ≈6500 K, 1000 = warmest ≈2700 K.
+	 * The UI slider shows the inverse axis (warm left, cool right). */
 	temp: number | null
 	/** 0–360 */
 	hue: number | null

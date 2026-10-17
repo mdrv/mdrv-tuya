@@ -15,7 +15,7 @@ use tracing_subscriber::EnvFilter;
 #[command(version)]
 struct Args {
     /// Config file with lamp credentials and presets
-    #[arg(short, long, default_value = "~/.config/mdrv-tuya/lamps.toml")]
+    #[arg(short, long, default_value = "~/.config/mdrv-tuya/mdrv-tuya.toml")]
     config: PathBuf,
 
     /// Bind address (use 0.0.0.0 to expose on the LAN)

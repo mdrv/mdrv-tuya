@@ -36,7 +36,7 @@ const SETTLE_WINDOW: Duration = Duration::from_millis(1200);
 type Aes128CbcEnc = Encryptor<aes::Aes128>;
 type Aes128CbcDec = Decryptor<aes::Aes128>;
 
-/// Credentials for one lamp, from `lamps.toml`.
+/// Credentials for one lamp, from `mdrv-tuya.toml`.
 #[derive(Clone)]
 pub struct LampCreds {
     pub name: String,

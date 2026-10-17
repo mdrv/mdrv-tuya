@@ -23,13 +23,22 @@ export function pct(perMille: number): number {
 	return Math.round(perMille / 10)
 }
 
-/** White-temp track: 0 (coolest) → 1000 (warmest). Shared by the temp
- * slider and the preset swatches so both ends agree. */
-export const TEMP_GRADIENT = 'linear-gradient(90deg, #9ecfef 0%, #e8dcc8 55%, #ffc98a 100%)'
+/**
+ * White-temp axis. The bulb's datapoint runs 0 = coolest (≈6500 K) to
+ * 1000 = warmest (≈2700 K), but the UI shows the Tuya-app orientation:
+ * warm on the left, cool/blue on the right. These two helpers convert
+ * between the device value (dp) and the slider value (ui).
+ */
+export const tempUi = (dp: number): number => 1000 - dp
+export const tempDp = (ui: number): number => 1000 - ui
 
-/** White-temp per-mille → approximate Kelvin (0 ≈ 6500 K cool, 1000 ≈ 2700 K warm). */
-export function tempKelvin(temp: number): number {
-	return Math.round(6500 - (temp / 1000) * 3800)
+/** White-temp track in UI orientation: 0 (warm) → 1000 (cool). Shared by
+ * the temp slider and the preset swatches so both ends agree. */
+export const TEMP_GRADIENT = 'linear-gradient(90deg, #ffc98a 0%, #e8dcc8 45%, #9ecfef 100%)'
+
+/** Slider temp value → approximate Kelvin (0 ≈ 2700 K warm, 1000 ≈ 6500 K cool). */
+export function tempKelvin(ui: number): number {
+	return Math.round(2700 + (ui / 1000) * 3800)
 }
 
 /**
@@ -39,7 +48,8 @@ export function tempKelvin(temp: number): number {
  */
 export function swatchCss(preset: Preset): string {
 	if (preset.mode === 'white') {
-		const pos = Math.round(((preset.temp ?? 500) / 1000) * 100)
+		// Sample the flipped gradient at the preset's UI-axis position.
+		const pos = Math.round((tempUi(preset.temp ?? 500) / 1000) * 100)
 		return `${TEMP_GRADIENT} ${pos}% 0% / 300% 100% no-repeat`
 	}
 	if (preset.hue === undefined || preset.sat === undefined || preset.val === undefined) {

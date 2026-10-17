@@ -1,4 +1,4 @@
-//! TOML config: lamp credentials + named presets (`~/.config/mdrv-tuya/lamps.toml`).
+//! TOML config: lamp credentials + named presets (`~/.config/mdrv-tuya/mdrv-tuya.toml`).
 //!
 //! Converted from the exploratory `/x/m/v270/tuya/lamps.jsonc`; that file stays
 //! as documentation, this is the runtime source of truth.

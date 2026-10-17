@@ -16,7 +16,7 @@ daemon is idle.
 > any bump, no support, no stability guarantee, no release schedule.
 
 > Requires: BlueZ and a LE-capable Bluetooth adapter, `bun`, `just`.
-> Keys come from `~/.config/mdrv-tuya/lamps.toml`. How to get them is
+> Keys come from `~/.config/mdrv-tuya/mdrv-tuya.toml`. How to get them is
 > documented in `/x/m/v270/tuya/04-cloud-keys.md`.
 
 ## Quick start
@@ -33,7 +33,7 @@ and open `http://<pc-ip>:4141`.
 Written for the in-lite INSM044 and tested only on it (two bulbs, protocol
 v3). Any Tuya BLE bulb that speaks protocol v3 over service `0x1910` and uses
 the same datapoint map (switch 1, mode 2, brightness 3, temperature 4, colour
-5) should work with just a `lamps.toml` entry, but no other model has been
+5) should work with just a `mdrv-tuya.toml` entry, but no other model has been
 tested. Wi-Fi-only Tuya devices are out of scope entirely.
 
 ## Development
@@ -52,7 +52,7 @@ tested. Wi-Fi-only Tuya devices are out of scope entirely.
   val) with roughly 1 s round-trip over one held BLE connection per lamp.
 - **Lamp selector.** Focus a single lamp or use the all-lamps view with
   global presets and all-on/all-off. The choice persists across reloads.
-- **Presets.** Named looks in `lamps.toml` (`[preset.sleep]`, …), one tap to
+- **Presets.** Named looks in `mdrv-tuya.toml` (`[preset.sleep]`, …), one tap to
   apply per lamp or to every lamp at once, editable without reloading.
   Chips show a colour swatch and reveal exact values on hover.
 - **Countdown timer.** Device-side auto-off (15/30/60 min or custom via the
@@ -63,7 +63,7 @@ tested. Wi-Fi-only Tuya devices are out of scope entirely.
   `--exec A preset sleep`, `--exec A countdown 900` for scripts and
   keybinds, without opening the UI. `--scan` lists nearby Tuya BLE lamps
   with their decrypted identity.
-- **Hot reload.** `kill -HUP <pid>` re-reads `lamps.toml`; lamp, credential
+- **Hot reload.** `kill -HUP <pid>` re-reads `mdrv-tuya.toml`; lamp, credential
   and preset changes apply without restarting the daemon.
 - **Failure toasts.** Confirmed changes pop a green toast, failures a red
   one with the lamp's name; the server logs every command, retry and dead
