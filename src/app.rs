@@ -2,7 +2,7 @@
 //! live lamp state to all connected UIs (kn26-style WS pattern).
 
 use crate::config::{Config, Lamp, Preset};
-use crate::tuya::{DpState, DpWrite, LampCmd, LampCreds, SessionEvent};
+use crate::tuya::{AdapterGate, DpState, DpWrite, LampCmd, LampCreds, SessionEvent};
 use anyhow::{bail, Context, Result};
 use axum::{
     extract::{
@@ -78,6 +78,8 @@ struct AppState {
     cfg_path: PathBuf,
     idle: Duration,
     adapter: Option<String>,
+    /// Serializes BLE connect/handshake across lamp tasks.
+    gate: AdapterGate,
 }
 
 type Shared = Arc<AppState>;
@@ -128,6 +130,7 @@ pub async fn serve(
         cfg_path,
         idle,
         adapter: adapter.clone(),
+        gate: Arc::default(),
     });
     for (name, lamp) in &cfg.lamps {
         spawn_lamp(&state, name, lamp);
@@ -151,6 +154,7 @@ pub async fn serve(
 struct LampRegistry<'a> {
     idle: Duration,
     adapter: Option<String>,
+    gate: AdapterGate,
     tx: &'a broadcast::Sender<String>,
     states: &'a Arc<Mutex<BTreeMap<String, LampView>>>,
 }
@@ -162,6 +166,7 @@ fn spawn_lamp(state: &Shared, name: &str, lamp: &Lamp) {
     let reg = LampRegistry {
         idle: state.idle,
         adapter: state.adapter.clone(),
+        gate: state.gate.clone(),
         tx: &state.tx,
         states: &state.states,
     };
@@ -203,6 +208,7 @@ fn start_lamp(
         },
         reg.idle,
         reg.adapter.clone(),
+        reg.gate.clone(),
         cmd_rx,
         ev_tx,
     ));
@@ -279,6 +285,7 @@ async fn apply_reload(state: &Shared, new: Config) {
                     let reg = LampRegistry {
                         idle: state.idle,
                         adapter: state.adapter.clone(),
+                        gate: state.gate.clone(),
                         tx: &state.tx,
                         states: &state.states,
                     };
@@ -293,6 +300,7 @@ async fn apply_reload(state: &Shared, new: Config) {
                 let reg = LampRegistry {
                     idle: state.idle,
                     adapter: state.adapter.clone(),
+                    gate: state.gate.clone(),
                     tx: &state.tx,
                     states: &state.states,
                 };

@@ -737,10 +737,20 @@ async fn connect_and_handshake(
 
 /// Long-lived task for one lamp: sleeps until a command arrives, connects,
 /// serves commands, disconnects on idle; reconnects on the next command.
+/// How many times a wake (connect + handshake) may attempt the adapter
+/// before the daemon reports the command failed.
+const WAKE_ATTEMPTS: u32 = 3;
+
+/// Serializes adapter work (connect, discovery, handshake) across lamp
+/// tasks. One controller: concurrent connects and discovery scans contend
+/// for the radio and show up as spurious `GATT write` failures.
+pub type AdapterGate = std::sync::Arc<tokio::sync::Mutex<()>>;
+
 pub async fn lamp_task(
     creds: LampCreds,
     idle_timeout: Duration,
     adapter_name: Option<String>,
+    gate: AdapterGate,
     mut rx: mpsc::Receiver<LampCmd>,
     events: mpsc::Sender<SessionEvent>,
 ) {
@@ -763,33 +773,65 @@ pub async fn lamp_task(
         }
     };
 
+    // Survives reconnects: a command that was in flight when the link died
+    // is re-applied after the re-wake instead of being lost.
+    let mut queue: VecDeque<LampCmd> = VecDeque::new();
     'reconnect: loop {
         // Phase 1 — idle: wait for a command that justifies taking the BLE slot.
-        let Some(first) = rx.recv().await else {
-            break 'reconnect; // app shutting down
-        };
-        let mut queue: VecDeque<LampCmd> = VecDeque::new();
-        queue.push_back(first);
+        if queue.is_empty() {
+            let Some(first) = rx.recv().await else {
+                break 'reconnect; // app shutting down
+            };
+            queue.push_back(first);
+        }
         while let Ok(more) = rx.try_recv() {
             queue.push_back(more);
         }
         let mut dp = DpState::default();
 
         // Phase 2 — connect + handshake (frames pumped inside wait_ack).
-        let (mut sess, mut frame_rx) =
-            match connect_and_handshake(&adapter, &creds, &mut dp, &events).await {
-                Ok(pair) => pair,
-                Err(e) => {
-                    tracing::warn!(lamp = %creds.name, error = %e, "connect failed");
-                    let _ = events
-                        .send(SessionEvent::CommandFailed(format!("wake failed: {e}")))
-                        .await;
-                    let _ = events
-                        .send(SessionEvent::Disconnected(format!("connect: {e}")))
-                        .await;
-                    continue 'reconnect;
-                }
+        // Gated so two lamps waking at once take turns on the adapter, and
+        // bounded so an unreachable lamp fails honestly. The queue survives
+        // the failure; the task waits for the next command before retrying.
+        let mut pair = None;
+        for attempt in 1..=WAKE_ATTEMPTS {
+            let res = {
+                let _g = gate.lock().await;
+                connect_and_handshake(&adapter, &creds, &mut dp, &events).await
             };
+            match res {
+                Ok(p) => {
+                    pair = Some(p);
+                    break;
+                }
+                Err(e) => {
+                    tracing::warn!(lamp = %creds.name, attempt, error = %e, "connect failed");
+                    if attempt < WAKE_ATTEMPTS {
+                        tokio::time::sleep(Duration::from_millis(500 * u64::from(attempt))).await;
+                    }
+                }
+            }
+        }
+        let Some((mut sess, mut frame_rx)) = pair else {
+            let _ = events
+                .send(SessionEvent::CommandFailed(format!(
+                    "wake failed after {WAKE_ATTEMPTS} attempts"
+                )))
+                .await;
+            let _ = events
+                .send(SessionEvent::Disconnected("connect: exhausted".into()))
+                .await;
+            // Don't spin against a lamp that is off or unreachable: park the
+            // queue and wait for the next user command before retrying.
+            let Some(next) = rx.recv().await else {
+                break 'reconnect;
+            };
+            queue.push_back(next);
+            while let Ok(more) = rx.try_recv() {
+                queue.push_back(more);
+            }
+            continue 'reconnect;
+        };
         let _ = events.send(SessionEvent::Connected).await;
         emit_state(&events, &dp).await;
         // Fresh state on every wake, so the UI shows reality even when the
@@ -817,9 +859,10 @@ pub async fn lamp_task(
             while let Some(q) = queue.pop_front() {
                 match q {
                     LampCmd::Write(writes) => {
-                        for w in writes {
+                        let mut failed = false;
+                        for w in &writes {
                             if let Err(e) =
-                                write_dp(&mut sess, &w, &mut frame_rx, &mut dp, &events).await
+                                write_dp(&mut sess, w, &mut frame_rx, &mut dp, &events).await
                             {
                                 tracing::warn!(
                                     lamp = %creds.name,
@@ -830,9 +873,17 @@ pub async fn lamp_task(
                                 let _ = events
                                     .send(SessionEvent::CommandFailed(format!("write failed: {e}")))
                                     .await;
-                                end_reason = "link lost";
-                                break 'session;
+                                failed = true;
+                                break;
                             }
+                        }
+                        if failed {
+                            // The link is dead. Re-queue the whole batch — DP
+                            // writes are idempotent — so the reconnect that
+                            // follows applies the user's change anyway.
+                            end_reason = "link lost";
+                            queue.push_front(LampCmd::Write(writes));
+                            break 'session;
                         }
                     }
                     LampCmd::Status => {
