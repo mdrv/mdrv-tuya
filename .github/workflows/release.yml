@@ -48,7 +48,7 @@ jobs:
           B=target/$T/release/mdrv-tuya
           D=mdrv-tuya-v$V-$T
           mkdir -p pkg/$D
-          cp $B README.md pkg/$D/
+          cp $B README.md LICENSE pkg/$D/
           tar -czf $D.tar.gz -C pkg $D
           sha256sum $D.tar.gz
       - uses: actions/upload-artifact@v7
