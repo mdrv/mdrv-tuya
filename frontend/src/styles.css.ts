@@ -307,6 +307,37 @@ export const sliderValue = style({
 	color: vars.color.text,
 })
 
+// Click-to-type number readout. The button replaces the plain span; the
+// input appears while editing. Both keep the mono/tabular look.
+export const sliderValueButton = style({
+	fontFamily: vars.font.mono,
+	fontVariantNumeric: 'tabular-nums',
+	fontSize: '0.82rem',
+	color: vars.color.text,
+	background: 'none',
+	border: 'none',
+	padding: 0,
+	cursor: 'pointer',
+	selectors: {
+		'&:hover': { color: vars.color.accent },
+		'&:focus-visible': { outline: `2px solid ${vars.color.accent}`, outlineOffset: '2px' },
+	},
+})
+
+export const sliderValueInput = style({
+	fontFamily: vars.font.mono,
+	fontVariantNumeric: 'tabular-nums',
+	fontSize: '0.82rem',
+	color: vars.color.text,
+	background: vars.color.surfaceAlt,
+	border: `1px solid ${vars.color.accent}`,
+	borderRadius: '6px',
+	padding: '1px 6px',
+	width: '5em',
+	textAlign: 'right',
+	outline: 'none',
+})
+
 export const slider = style({
 	appearance: 'none',
 	WebkitAppearance: 'none',

@@ -1,6 +1,13 @@
 <script lang="ts">
 	import { cssVar } from '../lib/cssvar.ts'
-	import { slider, sliderHead, sliderValue, sliderWrap, vars } from '../styles.css.ts'
+	import {
+		slider,
+		sliderHead,
+		sliderValueButton,
+		sliderValueInput,
+		sliderWrap,
+		vars,
+	} from '../styles.css.ts'
 
 	interface Props {
 		label: string
@@ -27,6 +34,8 @@
 		gradient,
 	}: Props = $props()
 
+	const uid = $props.id()
+
 	const pct = $derived(max > min ? ((value - min) / (max - min)) * 100 : 0)
 	// Dynamic track paint must be inline (per-instance value), hence the raw
 	// var() references via cssVar.
@@ -35,15 +44,59 @@
 			? gradient
 			: `linear-gradient(90deg, ${cssVar(vars.color.accent)} ${pct}%, ${cssVar(vars.color.surfaceAlt)} ${pct}%)`,
 	)
+
+	// Click the number to type an exact value. Enter or blur commits
+	// (clamped to the track range), Escape cancels.
+	let editing = $state(false)
+	let draft = $state('')
+
+	const startEdit = () => {
+		draft = String(value)
+		editing = true
+	}
+	const commitEdit = () => {
+		if (!editing) return
+		editing = false
+		const n = Number(draft)
+		if (draft.trim() === '' || !Number.isFinite(n) || n === value) return
+		;(oncommit ?? oninput)(Math.min(max, Math.max(min, Math.round(n))))
+	}
+	const cancelEdit = () => {
+		editing = false
+	}
+	const autofocus = (el: HTMLInputElement) => {
+		el.focus()
+		el.select()
+	}
+
 </script>
 
-<label class={sliderWrap}>
+<div class={sliderWrap}>
 	<span class={sliderHead}>
-		<span>{label}</span>
-		<span class={sliderValue}>{value}</span>
+		<label for={uid}>{label}</label>
+		{#if editing}
+			<input
+				class={sliderValueInput}
+				type="text"
+				inputmode="numeric"
+				bind:value={draft}
+				{@attach autofocus}
+				aria-label={`${label} exact value`}
+				onkeydown={(e) => {
+					if (e.key === 'Enter') commitEdit()
+					else if (e.key === 'Escape') cancelEdit()
+				}}
+				onblur={commitEdit}
+			/>
+		{:else}
+			<button type="button" class={sliderValueButton} onclick={startEdit} title="Click to type a value">
+				{value}
+			</button>
+		{/if}
 	</span>
 	<input
 		type="range"
+		id={uid}
 		class={slider}
 		style:--slider-image={trackImage}
 		{min}
@@ -53,4 +106,4 @@
 		oninput={(e) => oninput(e.currentTarget.valueAsNumber)}
 		onchange={(e) => oncommit?.(e.currentTarget.valueAsNumber)}
 	/>
-</label>
+</div>
