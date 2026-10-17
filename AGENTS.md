@@ -45,6 +45,9 @@ Requires: `bluetoothd` running, BlueZ, a LE-capable adapter, `bun`.
   hang the sender while the bulb has already applied the write.
 - Writing brightness/temp flips work_mode to white; writing colour flips it to
   colour. Expect unrequested DP2 pushes.
+- A bulb can silently drop the BLE link while BlueZ still reports it
+  connected, so `is_connected()` lies. Treat any write failure as a dead
+  session: drop it and let the next command open a fresh one.
 
 ## Commits
 

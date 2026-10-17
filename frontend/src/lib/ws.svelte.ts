@@ -24,7 +24,7 @@ type ClientMsg =
 type ServerMsg =
 	| { type: 'hello'; lamps: Record<string, LampView>; presets: Record<string, Preset> }
 	| { type: 'lamps'; lamps: Record<string, LampView> }
-	| { type: 'error'; error: string }
+	| { type: 'error'; lamp?: string; error: string }
 
 // One BLE write per 150 ms idle window while a slider is being dragged.
 const COALESCE_MS = 150
@@ -54,6 +54,78 @@ export const wsStatus = (): WsStatus => state.status
 export const lampNames = (): string[] => Object.keys(state.lamps).sort()
 export const presets = (): Record<string, Preset> => state.presets
 export const lastError = (): string | null => state.error
+
+// Toasts: short-lived feedback for command outcomes. Successes come from
+// overlay entries retired by a matching echo; failures from entries that hit
+// the echo TTL or from daemon error messages.
+export type Toast = {
+	id: number
+	kind: 'ok' | 'error'
+	lamp: string | null
+	text: string
+	/** Last update time, drives the merge window. */
+	at: number
+}
+const toasts = $state<Toast[]>([])
+const toastTimers = new Map<number, ReturnType<typeof setTimeout>>()
+let toastSeq = 0
+const TOAST_OK_TTL_MS = 2500
+// Same-lamp same-kind toasts raised within this window collapse into one
+// (a colour write retires hue/sat/val in the same snapshot).
+const TOAST_MERGE_MS = 600
+
+export const toastList = (): Toast[] => toasts
+
+export function dismissToast(id: number): void {
+	const prev = toastTimers.get(id)
+	if (prev !== undefined) clearTimeout(prev)
+	toastTimers.delete(id)
+	const i = toasts.findIndex((t) => t.id === id)
+	if (i !== -1) toasts.splice(i, 1)
+}
+
+function pushToast(kind: Toast['kind'], lamp: string | null, text: string): void {
+	const now = Date.now()
+	const near = toasts.find((t) => t.kind === kind && t.lamp === lamp && now - t.at < TOAST_MERGE_MS)
+	if (near !== undefined) {
+		near.at = now
+		if (!near.text.includes(text)) near.text = `${near.text}, ${text}`
+		const prev = toastTimers.get(near.id)
+		if (prev !== undefined) clearTimeout(prev)
+		scheduleToastExpiry(near)
+		return
+	}
+	const item: Toast = { id: ++toastSeq, kind, lamp, text, at: now }
+	toasts.push(item)
+	scheduleToastExpiry(item)
+}
+
+function scheduleToastExpiry(toast: Toast): void {
+	const ttl = toast.kind === 'ok' ? TOAST_OK_TTL_MS : ERROR_TTL_MS
+	toastTimers.set(
+		toast.id,
+		setTimeout(() => dismissToast(toast.id), ttl),
+	)
+}
+
+function fieldLabel(field: LampField): string {
+	switch (field) {
+		case 'on':
+			return 'power'
+		case 'brightness':
+			return 'brightness'
+		case 'temp':
+			return 'temperature'
+		default:
+			return 'colour'
+	}
+}
+
+function fieldText(field: LampField, value: number | boolean): string {
+	if (field === 'on') return `power ${value ? 'on' : 'off'}`
+	if (field === 'brightness' || field === 'temp') return `${fieldLabel(field)} ${value}`
+	return 'colour'
+}
 
 /** Server snapshot merged with any optimistic local edits for this lamp. */
 export function lampView(name: string): LampView | undefined {
@@ -204,15 +276,27 @@ function absorb(lamps: Record<string, LampView>): void {
 		if (server.connected) delete wake[name]
 		const ov = overlay[name]
 		if (ov === undefined) continue
+		const confirmed: string[] = []
+		const unconfirmed: string[] = []
 		for (const field of LAMP_FIELDS) {
 			const entry = ov[field]
 			if (entry === undefined) continue
 			const echo = server[field]
 			const echoed = echo !== null && echo === entry.value
 			const stale = entry.sent && Date.now() - entry.at > ECHO_TTL_MS
-			if (echoed || stale) delete ov[field]
+			if (echoed || stale) {
+				delete ov[field]
+				// Power failures surface via the daemon's error message (wake
+				// failed / write failed), so don't double-toast them here.
+				if (echoed) confirmed.push(fieldText(field, entry.value))
+				else if (field !== 'on') unconfirmed.push(fieldLabel(field))
+			}
 		}
 		if (Object.keys(ov).length === 0) delete overlay[name]
+		if (confirmed.length > 0) pushToast('ok', name, confirmed.join(', '))
+		if (unconfirmed.length > 0) {
+			pushToast('error', name, `${unconfirmed.join(', ')} did not confirm`)
+		}
 	}
 }
 
@@ -275,6 +359,7 @@ function connect(): void {
 
 function send(msg: ClientMsg): void {
 	const text = JSON.stringify(msg)
+	console.debug('[mdrv-tuya] →', text)
 	if (ws?.readyState === WebSocket.OPEN) {
 		ws.send(text)
 	} else if (outbox.length < 20) {
@@ -298,10 +383,14 @@ function handleMessage(text: string): void {
 			absorb(msg.lamps)
 			break
 		case 'error':
-			state.error = msg.error
-			setTimeout(() => {
-				if (state.error === msg.error) state.error = null
-			}, ERROR_TTL_MS)
+			console.error('[mdrv-tuya]', msg.lamp ?? '', msg.error)
+			if (msg.lamp !== undefined) pushToast('error', msg.lamp, msg.error)
+			else {
+				state.error = msg.error
+				setTimeout(() => {
+					if (state.error === msg.error) state.error = null
+				}, ERROR_TTL_MS)
+			}
 			break
 	}
 }

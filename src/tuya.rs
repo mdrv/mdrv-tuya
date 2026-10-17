@@ -162,6 +162,8 @@ fn be_i32(val: &[u8]) -> Option<i32> {
 pub enum SessionEvent {
     Connected,
     Disconnected(String),
+    /// A client command could not be carried out (wake failed, write died).
+    CommandFailed(String),
     State(DpState),
 }
 
@@ -553,34 +555,40 @@ async fn wait_ack(
     }
 }
 
-/// Write one DP with retry: weak RF links silently swallow GATT writes, so a
-/// missing ACK gets a fresh-seq resend (see AGENTS.md scars).
+/// Write one DP with retry: weak RF links silently swallow GATT writes, so
+/// both GATT errors and missing ACKs get a fresh-seq resend (see AGENTS.md
+/// scars). Returns the last error so the session loop can drop a dead link.
 async fn write_dp(
     sess: &mut Session,
     w: &DpWrite,
     frame_rx: &mut mpsc::Receiver<Vec<u8>>,
     dp: &mut DpState,
     events: &mpsc::Sender<SessionEvent>,
-) {
+) -> Result<()> {
     let mut payload = vec![w.id, w.dtype, w.value.len() as u8];
     payload.extend_from_slice(&w.value);
+    let mut last: Option<anyhow::Error> = None;
     for attempt in 1..=WRITE_ATTEMPTS {
         let (seq, waiter) = match sess.send(2, &payload, 0, true).await {
             Ok(pair) => pair,
             Err(e) => {
-                tracing::warn!(attempt, dp = w.id, error = %e, "write failed");
-                return;
+                tracing::warn!(attempt, dp = w.id, error = %e, "write failed, retrying");
+                last = Some(e);
+                continue;
             }
         };
-        let Some(waiter) = waiter else { return };
+        let Some(waiter) = waiter else {
+            anyhow::bail!("write returned no ack channel");
+        };
         match wait_ack(sess, waiter, seq, frame_rx, dp, events, ACK_TIMEOUT).await {
-            Ok(()) => return,
+            Ok(()) => return Ok(()),
             Err(e) => {
                 tracing::warn!(attempt, dp = w.id, error = %e, "write not acked, retrying");
+                last = Some(e);
             }
         }
     }
-    tracing::error!(dp = w.id, "write dropped after all attempts");
+    Err(last.unwrap_or_else(|| anyhow::anyhow!("no ack after {WRITE_ATTEMPTS} attempts")))
 }
 
 /// BlueZ only knows devices it has seen; if a direct connect fails, run a
@@ -765,6 +773,9 @@ pub async fn lamp_task(
                 Err(e) => {
                     tracing::warn!(lamp = %creds.name, error = %e, "connect failed");
                     let _ = events
+                        .send(SessionEvent::CommandFailed(format!("wake failed: {e}")))
+                        .await;
+                    let _ = events
                         .send(SessionEvent::Disconnected(format!("connect: {e}")))
                         .await;
                     continue 'reconnect;
@@ -779,6 +790,7 @@ pub async fn lamp_task(
         // Phase 3 — ready: serve commands until idle.
         let idle = tokio::time::sleep(idle_timeout);
         tokio::pin!(idle);
+        let mut end_reason = "idle";
         'session: loop {
             if queue.is_empty() {
                 tokio::select! {
@@ -797,7 +809,21 @@ pub async fn lamp_task(
                 match q {
                     LampCmd::Write(writes) => {
                         for w in writes {
-                            write_dp(&mut sess, &w, &mut frame_rx, &mut dp, &events).await;
+                            if let Err(e) =
+                                write_dp(&mut sess, &w, &mut frame_rx, &mut dp, &events).await
+                            {
+                                tracing::warn!(
+                                    lamp = %creds.name,
+                                    dp = w.id,
+                                    error = %e,
+                                    "command failed, dropping session"
+                                );
+                                let _ = events
+                                    .send(SessionEvent::CommandFailed(format!("write failed: {e}")))
+                                    .await;
+                                end_reason = "link lost";
+                                break 'session;
+                            }
                         }
                     }
                     LampCmd::Status => {
@@ -829,7 +855,9 @@ pub async fn lamp_task(
             }
         }
         sess.disconnect().await;
-        let _ = events.send(SessionEvent::Disconnected("idle".into())).await;
+        let _ = events
+            .send(SessionEvent::Disconnected(end_reason.into()))
+            .await;
         continue 'reconnect;
     }
 }

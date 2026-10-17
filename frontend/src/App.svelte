@@ -1,6 +1,7 @@
 <script lang="ts">
 	import GlobalBar from './components/GlobalBar.svelte'
 	import LampCard from './components/LampCard.svelte'
+	import Toasts from './components/Toasts.svelte'
 	import { applyTheme, theme, toggleTheme } from './lib/theme.svelte.ts'
 	import { lampNames, lastError, startWs, stopWs, wsStatus } from './lib/ws.svelte.ts'
 	import {
@@ -122,4 +123,6 @@
 			{/each}
 		{/if}
 	</main>
+
+	<Toasts />
 </div>

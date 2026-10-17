@@ -89,6 +89,16 @@ enum ClientMsg {
     },
 }
 
+impl ClientMsg {
+    fn lamp(&self) -> &str {
+        match self {
+            ClientMsg::Set { lamp, .. }
+            | ClientMsg::Preset { lamp, .. }
+            | ClientMsg::Refresh { lamp } => lamp,
+        }
+    }
+}
+
 pub async fn serve(
     cfg: Config,
     hostname: &str,
@@ -141,6 +151,12 @@ pub async fn serve(
                         SessionEvent::Disconnected(reason) => {
                             tracing::info!(lamp = %nm, reason = %reason, "session ended");
                             view.connected = false;
+                        }
+                        SessionEvent::CommandFailed(reason) => {
+                            tracing::warn!(lamp = %nm, reason = %reason, "command failed");
+                            let msg = json!({ "type": "error", "lamp": nm, "error": reason });
+                            let _ = tx2.send(msg.to_string());
+                            continue;
                         }
                         SessionEvent::State(dp) => view.apply_dp(&dp),
                     }
@@ -215,9 +231,12 @@ async fn handle_socket(state: Shared, mut socket: WebSocket) {
                     Some(Ok(Message::Text(text))) => {
                         match serde_json::from_str::<ClientMsg>(&text) {
                             Ok(msg) => {
+                                let lamp = msg.lamp().to_owned();
+                                tracing::debug!(lamp = %lamp, raw = %text, "ws command");
                                 if let Err(e) = apply(&state, msg).await {
-                                    tracing::warn!(error = %e, "client command failed");
-                                    let err = json!({ "type": "error", "error": e.to_string() });
+                                    tracing::warn!(lamp = %lamp, error = %e, "client command failed");
+                                    let err =
+                                        json!({ "type": "error", "lamp": lamp, "error": e.to_string() });
                                     let _ = socket.send(Message::Text(err.to_string().into())).await;
                                 }
                             }

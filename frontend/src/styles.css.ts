@@ -423,6 +423,40 @@ export const allBar = style({
 	background: vars.color.surfaceAlt,
 })
 
+// Toast feedback for command outcomes, bottom-center overlay.
+export const toastStack = style({
+	position: 'fixed',
+	left: '50%',
+	bottom: 'max(16px, env(safe-area-inset-bottom))',
+	transform: 'translateX(-50%)',
+	display: 'flex',
+	flexDirection: 'column',
+	alignItems: 'center',
+	gap: '8px',
+	width: 'min(92vw, 26rem)',
+	zIndex: 10,
+})
+
+export const toast = recipe({
+	base: {
+		padding: '10px 16px',
+		borderRadius: '12px',
+		border: `1px solid ${vars.color.border}`,
+		background: vars.color.surfaceAlt,
+		color: vars.color.text,
+		fontSize: '0.85rem',
+		cursor: 'pointer',
+		textAlign: 'center',
+		boxShadow: '0 8px 24px rgba(0, 0, 0, 0.35)',
+	},
+	variants: {
+		kind: {
+			ok: { borderColor: vars.color.accent },
+			error: { borderColor: '#e5484d' },
+		},
+	},
+})
+
 // Static hue wheel: conic-gradient starts at 12 o'clock and runs clockwise,
 // which is exactly the angle convention hueFromPointer uses.
 export const hueRing = style({
