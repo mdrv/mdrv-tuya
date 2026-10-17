@@ -20,6 +20,8 @@ export interface LampView {
 	sat: number | null
 	/** 0–1000 */
 	val: number | null
+	/** Device-side countdown timer, seconds remaining. */
+	countdown: number | null
 }
 
 export interface Preset {

@@ -1,24 +1,17 @@
 <script lang="ts">
 	import { presets, sendPreset } from '../lib/ws.svelte.ts'
-	import { chip, chipRow } from '../styles.css.ts'
+	import PresetChip from './PresetChip.svelte'
+	import { chipRow } from '../styles.css.ts'
 
 	let { name }: { name: string } = $props()
 
-	const names = $derived(Object.keys(presets()))
-
-	// Preset ids are lower-kebab (sleep, warm-full); display capitalizes the
-	// first letter only, leaving the rest verbatim.
-	function label(name: string): string {
-		return name.charAt(0).toUpperCase() + name.slice(1)
-	}
+	const list = $derived(presets())
 </script>
 
-{#if names.length > 0}
+{#if Object.keys(list).length > 0}
 	<div class={chipRow}>
-		{#each names as presetName (presetName)}
-			<button type="button" class={chip()} onclick={() => sendPreset(name, presetName)}>
-				{label(presetName)}
-			</button>
+		{#each Object.entries(list) as [presetName, preset] (presetName)}
+			<PresetChip {presetName} {preset} onpick={(n) => sendPreset(name, n)} />
 		{/each}
 	</div>
 {/if}

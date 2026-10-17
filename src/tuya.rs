@@ -23,6 +23,8 @@ const SERVICE: Uuid = Uuid::from_u128(0x0000_1910_0000_1000_8000_0080_5f9b_34fb)
 const CHAR_NOTIFY: Uuid = Uuid::from_u128(0x0000_2b10_0000_1000_8000_0080_5f9b_34fb);
 const CHAR_WRITE: Uuid = Uuid::from_u128(0x0000_2b11_0000_1000_8000_0080_5f9b_34fb);
 const GATT_MTU: usize = 20;
+/// Tuya manufacturer id in BLE adverts (Telink).
+const MFG_ID: u16 = 0x07d0;
 const ACK_TIMEOUT: Duration = Duration::from_secs(8);
 const WRITE_ATTEMPTS: u8 = 3;
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(15);
@@ -95,7 +97,7 @@ pub enum LampCmd {
 }
 
 /// Full lamp state as read from DP pushes (v3 wire format).
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize)]
 pub struct DpState {
     pub on: Option<bool>,
     /// 0 white · 1 colour · 2 scene
@@ -105,6 +107,8 @@ pub struct DpState {
     pub hue: Option<u32>,
     pub sat: Option<u32>,
     pub val: Option<u32>,
+    /// DP7 countdown timer, seconds remaining (device-side auto-off).
+    pub countdown: Option<u32>,
 }
 
 impl DpState {
@@ -139,6 +143,11 @@ impl DpState {
                         set(&mut self.val, s.get(8..12).map(part), &mut dirty);
                     }
                 }
+                (7, 2) => set(
+                    &mut self.countdown,
+                    be_i32(val).map(|v| v.max(0) as u32),
+                    &mut dirty,
+                ),
                 _ => {}
             }
         }
@@ -867,6 +876,139 @@ async fn resolve_adapter(session: &bluer::Session, name: Option<String>) -> Resu
         Some(n) => session.adapter(&n).context(format!("adapter {n}")),
         None => session.default_adapter().await.context("default adapter"),
     }
+}
+
+/// One discovered Tuya BLE lamp from [`scan`].
+#[derive(Debug)]
+pub struct ScanLamp {
+    pub mac: String,
+    pub rssi: Option<i16>,
+    /// Device uuid recovered from the encrypted advert — match against
+    /// config uuids to learn which physical lamp is which MAC.
+    pub uuid: Option<String>,
+}
+
+/// Decrypt an advert's identity: key = md5(product id from service data),
+/// ciphertext = manufacturer bytes [6..22] (protocol ref 05-protocol.md).
+/// IV is the key on some firmwares, zeros on others — try both.
+fn advert_uuid(mfg: &[u8], svc: &[u8]) -> Option<String> {
+    if mfg.len() < 22 || svc.len() < 2 {
+        return None;
+    }
+    let mut hasher = Md5::new();
+    hasher.update(&svc[1..]);
+    let key: [u8; 16] = hasher.finalize().into();
+    let ct: [u8; 16] = mfg[6..22].try_into().ok()?;
+    for iv in [key, [0u8; 16]] {
+        let buf = ct.to_vec();
+        let pt = Aes128CbcDec::new((&key).into(), (&iv).into())
+            .decrypt_padded_vec_mut::<NoPadding>(&buf)
+            .ok()?;
+        if let Ok(s) = std::str::from_utf8(&pt) {
+            if s.chars().all(|c| c.is_ascii_alphanumeric()) {
+                return Some(s.to_owned());
+            }
+        }
+    }
+    None
+}
+
+/// Discover nearby Tuya BLE lamps without connecting (the `--scan` mode):
+/// decrypts each advert's identity so lamps can be matched to config uuids.
+pub async fn scan(adapter_name: Option<String>, window: Duration) -> Result<Vec<ScanLamp>> {
+    let session = bluer::Session::new().await.context("BlueZ session")?;
+    let adapter = resolve_adapter(&session, adapter_name).await?;
+    let mut found: HashMap<String, ScanLamp> = HashMap::new();
+    {
+        let mut discovery = adapter
+            .discover_devices()
+            .await
+            .context("adapter discovery")?;
+        let deadline = tokio::time::Instant::now() + window;
+        loop {
+            match tokio::time::timeout_at(deadline, discovery.next()).await {
+                Ok(Some(bluer::AdapterEvent::DeviceAdded(address))) => {
+                    let Ok(device) = adapter.device(address) else {
+                        continue;
+                    };
+                    let rssi = device.rssi().await.ok().flatten();
+                    let uuid = async {
+                        let mfg = device.manufacturer_data().await.ok().flatten()?;
+                        let mfg = mfg.get(&MFG_ID)?;
+                        let svc = device.service_data().await.ok().flatten()?;
+                        let svc = svc.values().find(|v| v.len() > 1)?;
+                        advert_uuid(mfg, svc)
+                    }
+                    .await;
+                    found.insert(
+                        address.to_string(),
+                        ScanLamp {
+                            mac: address.to_string(),
+                            rssi,
+                            uuid,
+                        },
+                    );
+                }
+                Ok(Some(_)) => {}
+                Ok(None) => break,
+                Err(_elapsed) => break,
+            }
+        }
+    }
+    let mut lamps: Vec<ScanLamp> = found.into_values().collect();
+    lamps.sort_by_key(|l| std::cmp::Reverse(l.rssi));
+    Ok(lamps)
+}
+
+/// Connect, apply one command, disconnect — the `--exec` path. Prints the
+/// resulting DP state on success.
+pub async fn command_once(
+    creds: LampCreds,
+    cmd: LampCmd,
+    adapter_name: Option<String>,
+) -> Result<DpState> {
+    let session = bluer::Session::new().await.context("BlueZ session")?;
+    let adapter = resolve_adapter(&session, adapter_name).await?;
+    // Events are discarded here; the CLI prints the final state instead.
+    let (events, _ev_rx) = mpsc::channel(16);
+    let mut dp = DpState::default();
+    let (mut sess, mut frame_rx) =
+        connect_and_handshake(&adapter, &creds, &mut dp, &events).await?;
+    match cmd {
+        LampCmd::Write(writes) => {
+            for w in writes {
+                write_dp(&mut sess, &w, &mut frame_rx, &mut dp, &events).await?;
+            }
+        }
+        LampCmd::Status => {
+            let (seq, waiter) = sess.send(3, b"", 0, true).await?;
+            let waiter = waiter.context("STATUS ack channel")?;
+            wait_ack(
+                &mut sess,
+                waiter,
+                seq,
+                &mut frame_rx,
+                &mut dp,
+                &events,
+                ACK_TIMEOUT,
+            )
+            .await?;
+        }
+    }
+    // Give the bulb's late DP echoes a settle window to land.
+    let _ = tokio::time::timeout(SETTLE_WINDOW, async {
+        while let Some(pkt) = frame_rx.recv().await {
+            if process_packet(&mut sess, pkt, &mut dp, &events)
+                .await
+                .is_err()
+            {
+                break;
+            }
+        }
+    })
+    .await;
+    let _ = sess.disconnect().await;
+    Ok(dp)
 }
 
 #[cfg(test)]

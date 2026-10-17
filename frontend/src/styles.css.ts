@@ -393,6 +393,57 @@ export const chip = recipe({
 	defaultVariants: { on: false },
 })
 
+// Wrapper giving a preset chip an anchor for its hover tooltip.
+export const chipWrap = style({
+	position: 'relative',
+	display: 'inline-flex',
+})
+
+// Colour/temperature dot inside a preset chip. Inline-block so the fixed
+// size applies (an inline span ignores width/height and collapses to a
+// sliver).
+export const chipSwatch = style({
+	display: 'inline-block',
+	width: '12px',
+	height: '12px',
+	borderRadius: '50%',
+	border: `1px solid ${vars.color.border}`,
+	marginRight: '8px',
+	verticalAlign: '-2px',
+	flexShrink: 0,
+})
+
+// Hover/focus readout of a preset's target values.
+export const chipTip = style({
+	position: 'absolute',
+	bottom: 'calc(100% + 6px)',
+	left: '50%',
+	transform: 'translateX(-50%)',
+	background: vars.color.surface,
+	border: `1px solid ${vars.color.border}`,
+	borderRadius: '10px',
+	padding: '5px 10px',
+	fontSize: '0.75rem',
+	whiteSpace: 'nowrap',
+	color: vars.color.text,
+	opacity: 0,
+	pointerEvents: 'none',
+	transition: 'opacity 0.12s ease',
+	zIndex: 5,
+	selectors: {
+		[`${chipWrap}:hover &, ${chipWrap}:focus-within &`]: {
+			opacity: 1,
+		},
+	},
+})
+
+// Countdown timer row under a lamp card: caption + quick-pick chips.
+export const timerRow = style({
+	display: 'flex',
+	flexDirection: 'column',
+	gap: '6px',
+})
+
 // Lamp selector under the header: centered chips, breathing room below.
 export const selectorRow = style({
 	display: 'flex',

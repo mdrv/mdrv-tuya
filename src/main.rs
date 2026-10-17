@@ -34,6 +34,15 @@ struct Args {
     #[arg(short, long)]
     adapter: Option<String>,
 
+    /// Scan for Tuya BLE lamps (decrypts advert identities) and exit
+    #[arg(long)]
+    scan: bool,
+
+    /// One-shot command: connect, apply, print state, exit
+    /// (--exec LAMP CMD [VALUE]; CMD: on|off|bright|temp|countdown|colour|preset|status)
+    #[arg(long, num_args = 1..=3, value_names = ["LAMP", "CMD", "VALUE"])]
+    exec: Option<Vec<String>>,
+
     /// Debug logging
     #[arg(short, long)]
     debug: bool,
@@ -87,6 +96,49 @@ async fn main() -> Result<()> {
     let cfg_path = expand_home(&args.config);
     let cfg = config::load(&cfg_path)
         .with_context(|| format!("loading config {}", cfg_path.display()))?;
+
+    if args.scan {
+        let lamps = tuya::scan(args.adapter.clone(), std::time::Duration::from_secs(6)).await?;
+        println!("  MAC                RSSI   identity (uuid → config name)");
+        for l in lamps {
+            let ident = l.uuid.as_deref().map_or("-".into(), |u| {
+                let cfg_name = cfg
+                    .lamps
+                    .iter()
+                    .find(|(_, lamp)| lamp.uuid == u)
+                    .map(|(n, _)| n.as_str())
+                    .unwrap_or("-");
+                format!("{u} → {cfg_name}")
+            });
+            println!(
+                "  {:<17}  {:>4}  {}",
+                l.mac,
+                l.rssi.map_or("-".into(), |r| r.to_string()),
+                ident
+            );
+        }
+        return Ok(());
+    }
+
+    if let Some(parts) = args.exec {
+        let (lamp_name, cmd) =
+            app::exec_cmd(&cfg, &parts).with_context(|| format!("--exec {}", parts.join(" ")))?;
+        let lamp = cfg
+            .lamps
+            .get(&lamp_name)
+            .with_context(|| format!("unknown lamp {lamp_name}"))?;
+        let creds = tuya::LampCreds {
+            name: lamp_name.clone(),
+            mac: lamp.mac.clone(),
+            device_id: lamp.device_id.clone(),
+            uuid: lamp.uuid.clone(),
+            local_key: lamp.local_key.clone(),
+        };
+        let dp = tuya::command_once(creds, cmd, args.adapter.clone()).await?;
+        println!("{}", serde_json::to_string_pretty(&dp)?);
+        return Ok(());
+    }
+
     tracing::info!(
         path = %cfg_path.display(),
         lamps = cfg.lamps.len(),
@@ -96,6 +148,7 @@ async fn main() -> Result<()> {
 
     app::serve(
         cfg,
+        cfg_path,
         &args.hostname,
         args.port,
         args.idle_timeout,

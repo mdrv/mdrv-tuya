@@ -8,6 +8,7 @@
 // applied something else (clamping, races) — never hold an overlay entry
 // past its echo on the assumption the bulb "missed" the write.
 
+import { SvelteMap } from 'svelte/reactivity'
 import type { LampField, LampView, Preset } from './types.ts'
 import { LAMP_FIELDS } from './types.ts'
 
@@ -16,7 +17,7 @@ export type LampLink = 'live' | 'waking' | 'offline'
 
 type ClientMsg =
 	| { type: 'set'; lamp: string; dp: 'on'; value: boolean }
-	| { type: 'set'; lamp: string; dp: 'bright' | 'temp'; value: number }
+	| { type: 'set'; lamp: string; dp: 'bright' | 'temp' | 'countdown'; value: number }
 	| { type: 'set'; lamp: string; dp: 'colour'; value: { h: number; s: number; v: number } }
 	| { type: 'preset'; lamp: string; name: string }
 	| { type: 'refresh'; lamp: string }
@@ -24,6 +25,7 @@ type ClientMsg =
 type ServerMsg =
 	| { type: 'hello'; lamps: Record<string, LampView>; presets: Record<string, Preset> }
 	| { type: 'lamps'; lamps: Record<string, LampView> }
+	| { type: 'presets'; presets: Record<string, Preset> }
 	| { type: 'error'; lamp?: string; error: string }
 
 // One BLE write per 150 ms idle window while a slider is being dragged.
@@ -67,7 +69,7 @@ export type Toast = {
 	at: number
 }
 const toasts = $state<Toast[]>([])
-const toastTimers = new Map<number, ReturnType<typeof setTimeout>>()
+const toastTimers = new SvelteMap<number, ReturnType<typeof setTimeout>>()
 let toastSeq = 0
 const TOAST_OK_TTL_MS = 2500
 // Same-lamp same-kind toasts raised within this window collapse into one
@@ -166,7 +168,7 @@ function setOverlay(lamp: string, field: LampField, value: number | boolean): Ov
 	return entry
 }
 
-const timers = new Map<string, ReturnType<typeof setTimeout>>()
+const timers = new SvelteMap<string, ReturnType<typeof setTimeout>>()
 
 function coalesce(lamp: string, dp: string, fire: () => void): void {
 	const key = `${lamp}:${dp}`
@@ -267,6 +269,13 @@ export function sendPreset(lamp: string, name: string): void {
 	delete overlay[lamp]
 	markWake(lamp)
 	send({ type: 'preset', lamp, name })
+}
+
+export function setCountdown(lamp: string, seconds: number): void {
+	// Fire-and-forget: the timer runs on the bulb itself, so the next
+	// snapshot carries the device's remaining seconds. No optimistic overlay.
+	markWake(lamp)
+	send({ type: 'set', lamp, dp: 'countdown', value: seconds })
 }
 
 /** Fold a full snapshot in, retiring overlay entries that echoed or expired. */
@@ -381,6 +390,9 @@ function handleMessage(text: string): void {
 			break
 		case 'lamps':
 			absorb(msg.lamps)
+			break
+		case 'presets':
+			state.presets = msg.presets
 			break
 		case 'error':
 			console.error('[mdrv-tuya]', msg.lamp ?? '', msg.error)

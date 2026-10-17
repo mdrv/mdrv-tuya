@@ -1,15 +1,10 @@
 <script lang="ts">
 	import { lampNames, presets, sendPreset, setPower } from '../lib/ws.svelte.ts'
+	import PresetChip from './PresetChip.svelte'
 	import { allBar, chip, chipRow, groupLabel } from '../styles.css.ts'
 
 	const names = $derived(lampNames())
-	const presetNames = $derived(Object.keys(presets()))
-
-	// Preset ids are lower-kebab (sleep, warm-full); display capitalizes the
-	// first letter only, leaving the rest verbatim.
-	function label(name: string): string {
-		return name.charAt(0).toUpperCase() + name.slice(1)
-	}
+	const presetList = $derived(presets())
 
 	function powerAll(on: boolean): void {
 		for (const name of names) setPower(name, on)
@@ -28,14 +23,12 @@
 			<button type="button" class={chip()} onclick={() => powerAll(false)}>All off</button>
 		</div>
 	</div>
-	{#if presetNames.length > 0}
+	{#if Object.keys(presetList).length > 0}
 		<div>
 			<p class={groupLabel}>Presets — every lamp</p>
 			<div class={chipRow}>
-				{#each presetNames as presetName (presetName)}
-					<button type="button" class={chip()} onclick={() => presetAll(presetName)}>
-						{label(presetName)}
-					</button>
+				{#each Object.entries(presetList) as [presetName, preset] (presetName)}
+					<PresetChip {presetName} {preset} onpick={presetAll} />
 				{/each}
 			</div>
 		</div>

@@ -48,6 +48,9 @@ Requires: `bluetoothd` running, BlueZ, a LE-capable adapter, `bun`.
 - A bulb can silently drop the BLE link while BlueZ still reports it
   connected, so `is_connected()` lies. Treat any write failure as a dead
   session: drop it and let the next command open a fresh one.
+- The frontend is embedded with `include_str!` at compile time. Rebuilding
+  `frontend/` alone does nothing to a built binary — always
+  `cargo build --release` after `bun run build` before restarting.
 
 ## Commits
 

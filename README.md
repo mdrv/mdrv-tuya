@@ -53,7 +53,21 @@ tested. Wi-Fi-only Tuya devices are out of scope entirely.
 - **Lamp selector.** Focus a single lamp or use the all-lamps view with
   global presets and all-on/all-off. The choice persists across reloads.
 - **Presets.** Named looks in `lamps.toml` (`[preset.sleep]`, …), one tap to
-  apply per lamp or to every lamp at once, editable without rebuilding.
+  apply per lamp or to every lamp at once, editable without reloading.
+  Chips show a colour swatch and reveal exact values on hover.
+- **Countdown timer.** Device-side auto-off (15/30/60 min or custom via the
+  CLI). The timer lives in the bulb, so it survives daemon restarts.
+- **Kelvin readout.** The temperature slider shows its approximate colour
+  temperature next to the label.
+- **CLI one-shots.** `mdrv-tuya --exec A off`, `--exec A bright 500`,
+  `--exec A preset sleep`, `--exec A countdown 900` for scripts and
+  keybinds, without opening the UI. `--scan` lists nearby Tuya BLE lamps
+  with their decrypted identity.
+- **Hot reload.** `kill -HUP <pid>` re-reads `lamps.toml`; lamp, credential
+  and preset changes apply without restarting the daemon.
+- **Failure toasts.** Confirmed changes pop a green toast, failures a red
+  one with the lamp's name; the server logs every command, retry and dead
+  session.
 - **App coexistence.** The daemon holds a lamp's connection only while in use
   and disconnects after `--idle-timeout` (default 300 s), which frees the bulb
   for the Tuya app.
@@ -69,14 +83,15 @@ Offline checks:
 
 ```
 just check        # types: cargo check + svelte-check
-just test         # 21 Rust tests + 9 frontend tests
+just test         # 31 Rust tests + 16 frontend tests
 ```
 
 The Rust tests cover the protocol framing (CRC, varints, AES frame
-round-trip, MTU fragmenting), datapoint parsing, config parsing, and the
-write builders, including the ordering rule that brightness must precede
-mode/colour writes. The frontend tests cover the colour math behind the hue
-ring.
+round-trip, MTU fragmenting), datapoint parsing, config parsing, the write
+builders (including the ordering rule that brightness must precede
+mode/colour writes) and the CLI command parser. The frontend tests cover
+the colour math behind the hue ring, the Kelvin mapping and the preset
+swatches.
 
 Live checklist, in order (needs a lamp in radio range):
 
