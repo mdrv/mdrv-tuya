@@ -46,9 +46,9 @@ describe('pct', () => {
 })
 
 describe('tempKelvin', () => {
-	test('track ends map to the bead range (blue left, yellow right)', () => {
-		expect(tempKelvin(0)).toBe(6500)
-		expect(tempKelvin(1000)).toBe(2700)
+	test('track ends map to the bead range (yellow left, blue right)', () => {
+		expect(tempKelvin(0)).toBe(2700)
+		expect(tempKelvin(1000)).toBe(6500)
 	})
 	test('midpoint', () => {
 		expect(tempKelvin(500)).toBe(4600)
@@ -57,12 +57,12 @@ describe('tempKelvin', () => {
 
 describe('swatchCss', () => {
 	test('white preset samples the temp gradient at its position', () => {
-		// warmest (dp 1000) sits at the right/yellow end of the track
+		// coolest (dp 1000) sits at the right/blue end of the track
 		const css = swatchCss({ mode: 'white', temp: 1000, brightness: 1000 })
 		expect(css).toContain('linear-gradient')
 		expect(css).toContain('100% 0% / 300% 100%')
 	})
-	test('coolest white preset lands on the left', () => {
+	test('warmest white preset lands on the left', () => {
 		const css = swatchCss({ mode: 'white', temp: 0 })
 		expect(css).toContain('0% 0% / 300% 100%')
 	})

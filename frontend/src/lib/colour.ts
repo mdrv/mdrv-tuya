@@ -24,16 +24,16 @@ export function pct(perMille: number): number {
 }
 
 /**
- * White-temp track, in the bulb's own axis: 0 = coolest (≈6500 K, blue)
- * on the left, 1000 = warmest (≈2700 K, yellow) on the right — higher
- * values are yellower and the Kelvin readout falls rightward. Shared by
- * the temp slider and the preset swatches so both ends agree.
+ * White-temp track, in the bulb's own axis, verified against the physical
+ * bulb: 0 = warmest (≈2700 K, yellow) on the left, 1000 = coolest
+ * (≈6500 K, blue-white) on the right. The thumb always sits on the colour
+ * the lamp will show. Shared by the temp slider and the preset swatches.
  */
-export const TEMP_GRADIENT = 'linear-gradient(90deg, #9ecfef 0%, #e8dcc8 55%, #ffc98a 100%)'
+export const TEMP_GRADIENT = 'linear-gradient(90deg, #ffc98a 0%, #e8dcc8 45%, #9ecfef 100%)'
 
-/** White-temp value → approximate Kelvin (0 ≈ 6500 K cool, 1000 ≈ 2700 K warm). */
+/** White-temp value → approximate Kelvin (0 ≈ 2700 K warm, 1000 ≈ 6500 K cool). */
 export function tempKelvin(temp: number): number {
-	return Math.round(6500 - (temp / 1000) * 3800)
+	return Math.round(2700 + (temp / 1000) * 3800)
 }
 
 /**

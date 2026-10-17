@@ -12,8 +12,8 @@ export interface LampView {
 	mode: 0 | 1 | 2 | null
 	/** 10–1000 */
 	brightness: number | null
-	/** 0–1000 device value; higher = yellower. 0 = coolest ≈6500 K,
-	 * 1000 = warmest ≈2700 K (verified against the physical bulb). */
+	/** 0–1000 device value; 0 = warmest ≈2700 K (yellow), 1000 = coolest
+	 * ≈6500 K (blue-white), verified against the physical bulb. */
 	temp: number | null
 	/** 0–360 */
 	hue: number | null
